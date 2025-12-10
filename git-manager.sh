@@ -361,8 +361,13 @@ manage_branches() {
             local branches=$(git --no-pager branch | sed 's/^[* ]*//')
             local branch_list=""
             for branch in $branches; do
-                branch_list="$branch_list$branch - "
+                branch_list="$branch_list$branch $branch "
             done
+            
+            if [ -z "$branch_list" ]; then
+                whiptail --title "No Branches" --msgbox "No branches found." 8 60
+                return
+            fi
             
             local selected=$(whiptail --title "Switch Branch" --menu "Select branch to switch to:" 20 78 10 $branch_list 3>&1 1>&2 2>&3)
             
