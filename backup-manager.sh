@@ -1866,7 +1866,7 @@ $report
         whiptail --title "Issues Found" --yesno "\
 Found $warnings issue(s).
 
-Want to test the connection to GitHub?" 10 70 3>&1 1>&2 2>&3
+Want to test the connection to GitHub?" 10 70
         
         local exit_code2=$?
         if [ $exit_code2 -eq 0 ]; then
@@ -2176,24 +2176,31 @@ main() {
             # User wants to use existing data
             # Try to load router name from git config
             if [ -d "$BACKUP_DIR/.git" ]; then
-                cd "$BACKUP_DIR" || exit 1
-                ROUTER_NAME=$(git --no-pager config user.name 2>/dev/null || echo "")
-                
-                # Check if remote is configured
-                if git --no-pager config --get remote.origin.url >/dev/null 2>&1; then
-                    ONLINE_BACKUP_ENABLED="true"
-                    GITHUB_REPO_URL=$(git --no-pager config --get remote.origin.url 2>/dev/null || echo "")
+                if ! cd "$BACKUP_DIR"; then
+                    whiptail --title "Error" --msgbox "Failed to access backup directory" 8 70
+                    run_setup_wizard
+                else
+                    ROUTER_NAME=$(git --no-pager config user.name 2>/dev/null || echo "")
                     
-                    # Extract username from URL if possible
-                    if echo "$GITHUB_REPO_URL" | grep -q "github.com"; then
-                        GITHUB_USERNAME=$(echo "$GITHUB_REPO_URL" | sed -n 's/.*github.com[:/]\([^/]*\)\/.*/\1/p')
+                    # Check if remote is configured
+                    if git --no-pager config --get remote.origin.url >/dev/null 2>&1; then
+                        ONLINE_BACKUP_ENABLED="true"
+                        GITHUB_REPO_URL=$(git --no-pager config --get remote.origin.url 2>/dev/null || echo "")
+                        
+                        # Extract username from URL if possible
+                        if echo "$GITHUB_REPO_URL" | grep -q "github.com"; then
+                            GITHUB_USERNAME=$(echo "$GITHUB_REPO_URL" | sed -n 's/.*github.com[:/]\([^/]*\)\/.*/\1/p')
+                        fi
                     fi
                 fi
             fi
             
             # If we still don't have a router name, ask for one
             if [ -z "$ROUTER_NAME" ]; then
-                setup_router_name || exit 1
+                if ! setup_router_name; then
+                    # User cancelled, run full wizard
+                    run_setup_wizard
+                fi
             fi
             
             # Set default backup files if not set
