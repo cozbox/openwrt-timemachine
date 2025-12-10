@@ -1,17 +1,16 @@
 # OpenWrt Time Machine
 
-
-
 A simple backup tool for OpenWrt routers that automatically saves your settings on router and optionally online. 
 
 ## What It Does
 
-- 💾 **Automatic Backups** - Saves your router settings daily, weekly, or monthly
-- ☁️ **Online Storage** - Keeps backups safe on GitHub (free, private account)
+- 💾 **Local Backups** - Saves your router settings automatically on the router itself
+- ☁️ **Online Storage (Optional)** - Optionally keeps backups safe online (on GitHub)
 - ⏮️ **Easy Restore** - Go back to any previous backup with one click
 - 📱 **Plain English** - No confusing technical terms
 - 🔒 **Secure** - Uses encrypted connections, settings stay private
 - 📦 **Package Recovery** - Remembers and reinstalls your packages after a reset
+- 🌐 **Local-First** - Works without any internet or GitHub account required
 
 ## Who Is This For?
 
@@ -19,12 +18,13 @@ A simple backup tool for OpenWrt routers that automatically saves your settings 
 - You want to protect your router settings from being lost
 - You want automatic backups you don't have to think about
 - You might need to restore settings after a factory reset
+- You want backups stored locally on your router (GitHub is optional)
 
 ## Requirements
 
 - OpenWrt router
-- Internet connection
-- Free GitHub account (we'll show you how to sign up)
+- Internet connection (only needed for optional online backup)
+- Free GitHub account (OPTIONAL - only if you want online backup)
 
 ## Installation
 
@@ -44,7 +44,7 @@ curl -L https://raw.githubusercontent.com/niyisurvey/gitwrt/main/install-backup.
 
 That's it! The installer will:
 1. Install everything needed
-2. Download the backup manager
+2. Download Time Machine
 3. Walk you through a simple setup wizard
 4. Create your first backup
 
@@ -79,72 +79,78 @@ backup
 
 ### First Time Setup
 
-When you run `backup` for the first time, it will guide you through:
+When you run `timemachine` for the first time, it will guide you through:
 
 1. **Welcome** - Explains what the app does
-2. **GitHub Account** - Asks if you have one (shows you how to sign up if not)
-3. **Username** - Your GitHub username
-4. **Security Key** - Creates one automatically
-5. **Add Key to GitHub** - Shows you exactly where to paste it
-6. **Test Connection** - Makes sure everything works
-7. **Router Name** - What do you want to call this router?
-8. **Select Files** - Choose what to back up (has smart defaults)
-9. **Auto-Backup** - How often? (Daily, weekly, monthly, or manual)
-10. **First Backup** - Creates your first backup automatically
-11. **Done!** - You're protected!
+2. **Choose Backup Type** - Local only, Local + Online, or Connect to existing repo
+3. **Router Name** - What do you want to call this router?
+4. **Select Files** - Choose what to back up (has smart defaults)
+5. **Auto-Backup** - How often? (Daily, weekly, monthly, or manual)
+6. **GitHub Setup** - (Only if you chose online backup) GitHub username, security key, etc.
+7. **First Backup** - Creates your first backup automatically
+8. **Done!** - You're protected!
 
-The whole process takes about 2 minutes.
+The whole process takes about 1-2 minutes for local-only, or 3-5 minutes if setting up GitHub.
 
 ### Daily Use
 
 After setup, just run:
 
 ```sh
-backup
+timemachine
 ```
 
 You'll see a menu with these options:
 
 ```
-┌─────────────────────────────────────────────┐
-│  OpenWrt Backup Manager                     │
-├─────────────────────────────────────────────┤
-│  Router: Living Room Router                 │
-│  Last backup: 2 hours ago                   │
-│  Status: ✓ Everything saved                 │
-├─────────────────────────────────────────────┤
-│                                             │
-│  1. Backup Now                              │
-│  2. View Changes                            │
-│  3. Restore                                 │
-│  4. History                                 │
-│  5. Compare Backups                         │
-│  6. Health Check                            │
-│  7. Export Backup                           │
-│  8. Settings                                │
-│  9. Exit                                    │
-│                                             │
-└─────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────┐
+│  OpenWrt Time Machine                           │
+├─────────────────────────────────────────────────┤
+│  Router: Living Room Router                     │
+│  Last backup: 2 hours ago                       │
+│  Status: ✓ Everything saved                     │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│  BACKUP                                         │
+│    1. Backup now (save to this router)         │
+│    2. Sync online (upload to GitHub)           │
+│                                                 │
+│  RESTORE                                        │
+│    3. Restore from router                      │
+│    4. Restore from online                      │
+│                                                 │
+│  VIEW                                           │
+│    5. View local backups                       │
+│    6. View online backups                      │
+│    7. Compare backups                          │
+│                                                 │
+│  OTHER                                          │
+│    8. Health check                             │
+│    9. Export (USB/download)                    │
+│   10. Settings                                  │
+│    0. Exit                                      │
+│                                                 │
+└─────────────────────────────────────────────────┘
 ```
 
 ### Common Tasks
 
 **Creating a backup:**
-1. Run `backup`
-2. Select "Backup Now"
+1. Run `timemachine`
+2. Select "Backup now"
 3. Review what changed
 4. Add a note (optional)
 5. Done!
 
 **Restoring settings:**
-1. Run `backup`
-2. Select "Restore"
+1. Run `timemachine`
+2. Select "Restore from router" (or "Restore from online")
 3. Pick which backup to restore
 4. Confirm
 5. Reboot if prompted
 
 **Checking if everything is working:**
-1. Run `backup`
+1. Run `timemachine`
 2. Select "Health Check"
 3. Fix any issues if shown
 
@@ -156,7 +162,7 @@ You can choose what to protect during setup (you can change this later):
 - ✅ **Firewall rules** (recommended) - Port forwards, traffic rules
 - ✅ **DHCP settings** (recommended) - Static leases, DHCP options
 - ✅ **Installed packages** (recommended) - List of all your installed packages
-- ⚠️ **WiFi passwords** (optional, WARNING) - Only if you understand the risks
+- ⚠️ **WiFi passwords** (optional, WARNING) - Only if you understand the risks (only stored if online backup is enabled)
 - ⚙️ **System settings** (recommended) - Hostname, time zone, etc.
 - 🔧 **Everything** (advanced) - All files in /etc/config/
 
@@ -194,8 +200,8 @@ You can use the same GitHub account for multiple routers:
 - You can switch between routers in Settings
 
 Examples:
-- "Main Router" → backs up to `openwrt-backup-main-router`
-- "Living Room AP" → backs up to `openwrt-backup-living-room-ap`
+- "Main Router" → backs up to `openwrt-timemachine-main-router`
+- "Living Room AP" → backs up to `openwrt-timemachine-living-room-ap`
 
 ## Troubleshooting
 
@@ -208,9 +214,9 @@ Examples:
 
 This means your SSH key isn't added to GitHub:
 
-1. Run `backup`
+1. Run `timemachine`
 2. Go to Settings
-3. Select "Re-setup GitHub connection"
+3. Select "Setup/change online backup"
 4. Follow the instructions
 
 ### "No changes since last backup"
@@ -256,13 +262,13 @@ All the technical stuff is hidden. You just see plain English like "Backup Now" 
 
 ## Files and Locations
 
-The backup manager stores files in these locations:
+Time Machine stores files in these locations:
 
-- **Backup directory:** `/root/openwrt-backup/`
-- **Config file:** `~/.backupmanager/config`
+- **Backup directory:** `/root/time-machine/`
+- **Config file:** `~/.timemachine/config`
 - **SSH key:** `~/.ssh/id_ed25519`
 - **Script:** `/root/backup-manager.sh`
-- **Command alias:** `/usr/bin/backup` → `/root/backup-manager.sh`
+- **Command alias:** `/usr/bin/timemachine` → `/root/backup-manager.sh`
 
 ## Compatibility
 
