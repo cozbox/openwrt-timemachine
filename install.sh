@@ -54,7 +54,7 @@ PACKAGES="git whiptail openssh-client openssh-keygen curl"
 
 for pkg in $PACKAGES; do
     print_info "Installing $pkg..."
-    if opkg install $pkg 2>/dev/null || opkg list-installed | grep -q "^$pkg "; then
+    if opkg install "$pkg" 2>/dev/null || opkg list-installed | grep -q "^$pkg "; then
         print_success "$pkg installed"
     else
         print_warning "$pkg may already be installed or failed to install"

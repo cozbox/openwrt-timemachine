@@ -34,6 +34,20 @@ print_warning() {
     printf "${YELLOW}⚠ %s${NC}\n" "$1"
 }
 
+# Safely change to a directory
+safe_cd() {
+    if [ -z "$1" ]; then
+        whiptail --title "Error" --msgbox "No directory specified." 8 60
+        return 1
+    fi
+    
+    if ! cd "$1" 2>/dev/null; then
+        whiptail --title "Error" --msgbox "Failed to access directory: $1" 8 60
+        return 1
+    fi
+    return 0
+}
+
 # Check if required tools are installed
 check_requirements() {
     local missing=""
@@ -169,7 +183,7 @@ show_status() {
         return
     fi
     
-    cd "$CURRENT_REPO"
+    safe_cd "$CURRENT_REPO" || return
     
     local branch=$(git --no-pager branch --show-current 2>/dev/null || echo "unknown")
     local remote=$(git --no-pager config --get remote.origin.url 2>/dev/null || echo "No remote configured")
@@ -187,7 +201,7 @@ do_pull() {
         return
     fi
     
-    cd "$CURRENT_REPO"
+    safe_cd "$CURRENT_REPO" || return
     
     # Check if remote exists
     if ! git --no-pager config --get remote.origin.url >/dev/null 2>&1; then
@@ -214,7 +228,7 @@ do_push() {
         return
     fi
     
-    cd "$CURRENT_REPO"
+    safe_cd "$CURRENT_REPO" || return
     
     # Check if remote exists
     if ! git --no-pager config --get remote.origin.url >/dev/null 2>&1; then
@@ -241,7 +255,7 @@ show_diff() {
         return
     fi
     
-    cd "$CURRENT_REPO"
+    safe_cd "$CURRENT_REPO" || return
     
     local diff_output=$(git --no-pager diff 2>&1)
     
@@ -259,7 +273,7 @@ stage_files() {
         return 1
     fi
     
-    cd "$CURRENT_REPO"
+    safe_cd "$CURRENT_REPO" || return
     
     # Get list of modified/untracked files
     local files=$(git --no-pager status --short 2>/dev/null | awk '{print $2}')
@@ -304,7 +318,7 @@ do_commit() {
         return
     fi
     
-    cd "$CURRENT_REPO"
+    safe_cd "$CURRENT_REPO" || return
     
     # Show diff first
     show_diff
@@ -342,7 +356,7 @@ manage_branches() {
         return
     fi
     
-    cd "$CURRENT_REPO"
+    safe_cd "$CURRENT_REPO" || return
     
     local choice=$(whiptail --title "Branch Management" --menu "Choose an option:" 15 60 4 \
         "1" "List branches" \
@@ -414,7 +428,7 @@ clone_repo() {
     # Ensure repos directory exists
     mkdir -p "$REPOS_DIR"
     
-    cd "$REPOS_DIR"
+    safe_cd "$REPOS_DIR" || return
     
     local output=$(git clone "$repo_url" 2>&1)
     local exit_code=$?
@@ -435,7 +449,7 @@ view_log() {
         return
     fi
     
-    cd "$CURRENT_REPO"
+    safe_cd "$CURRENT_REPO" || return
     
     local log_output=$(git --no-pager log --oneline -20 2>&1)
     
