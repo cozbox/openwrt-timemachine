@@ -26,6 +26,14 @@ ONLINE_BACKUP_ENABLED="false"
 BACKUP_SCHEDULE="never"
 BACKUP_FILES=""
 
+# Default backup files selection
+DEFAULT_BACKUP_FILES='"network" "firewall" "packages" "dhcp" "system"'
+
+# Sanitize router name for use in URLs, paths, and comments
+sanitize_router_name() {
+    echo "$1" | tr ' ' '-' | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]-'
+}
+
 # Print colored messages
 print_success() {
     printf "${GREEN}✓ %s${NC}\n" "$1"
@@ -242,7 +250,7 @@ This lets GitHub recognize this router safely." 10 70
     mkdir -p "$HOME/.ssh"
     
     # Sanitize router name for SSH key comment
-    local sanitized_name=$(echo "$ROUTER_NAME" | tr ' ' '-' | tr -cd '[:alnum:]-')
+    local sanitized_name=$(sanitize_router_name "$ROUTER_NAME")
     
     if ssh-keygen -t ed25519 -N "" -f "$SSH_KEY_PATH" -C "openwrt-timemachine-$sanitized_name" >/dev/null 2>&1; then
         print_success "Security key created"
@@ -367,7 +375,7 @@ Choose what you want to protect:
     local exit_code=$?
     if [ $exit_code -ne 0 ]; then
         # User cancelled, use defaults
-        BACKUP_FILES='"network" "firewall" "packages" "dhcp" "system"'
+        BACKUP_FILES="$DEFAULT_BACKUP_FILES"
         return 1
     fi
     
@@ -445,7 +453,7 @@ This will save your current settings." 10 70
         
         # Create remote if online backup is enabled and username is set
         if [ "$ONLINE_BACKUP_ENABLED" = "true" ] && [ -n "$GITHUB_USERNAME" ]; then
-            local repo_name="openwrt-timemachine-$(echo "$ROUTER_NAME" | tr ' ' '-' | tr '[:upper:]' '[:lower:]')"
+            local repo_name="openwrt-timemachine-$(sanitize_router_name "$ROUTER_NAME")"
             GITHUB_REPO_URL="git@github.com:$GITHUB_USERNAME/$repo_name.git"
             git --no-pager remote add origin "$GITHUB_REPO_URL" 2>/dev/null || true
         fi
@@ -734,39 +742,6 @@ run_setup_wizard() {
     return 0
 }
 
-# Old full setup wizard function - keeping for compatibility but updated
-old_run_setup_wizard() {
-    setup_welcome
-    setup_github_check
-    
-    if ! setup_github_username; then
-        return 1
-    fi
-    
-    if ! setup_router_name; then
-        return 1
-    fi
-    
-    setup_ssh_key
-    setup_show_key
-    
-    # Loop until connection succeeds or user skips
-    while ! setup_test_connection; do
-        setup_show_key
-    done
-    
-    setup_select_files
-    setup_auto_backup
-    
-    # Save config before first backup
-    save_config
-    
-    setup_first_backup
-    setup_complete
-    
-    return 0
-}
-
 # Get time since last backup
 get_last_backup_time() {
     if [ ! -d "$BACKUP_DIR/.git" ]; then
@@ -977,7 +952,7 @@ What would you like to do?" 15 70 3 \
                 # Set up remote
                 if [ -d "$BACKUP_DIR/.git" ]; then
                     cd "$BACKUP_DIR" || return
-                    local repo_name="openwrt-timemachine-$(echo "$ROUTER_NAME" | tr ' ' '-' | tr '[:upper:]' '[:lower:]')"
+                    local repo_name="openwrt-timemachine-$(sanitize_router_name "$ROUTER_NAME")"
                     GITHUB_REPO_URL="git@github.com:$GITHUB_USERNAME/$repo_name.git"
                     git --no-pager remote add origin "$GITHUB_REPO_URL" 2>/dev/null || git --no-pager remote set-url origin "$GITHUB_REPO_URL"
                 fi
@@ -1740,7 +1715,7 @@ Configure online backup:" 15 70 3 \
             # Set up remote
             if [ -d "$BACKUP_DIR/.git" ]; then
                 cd "$BACKUP_DIR" || return
-                local repo_name="openwrt-timemachine-$(echo "$ROUTER_NAME" | tr ' ' '-' | tr '[:upper:]' '[:lower:]')"
+                local repo_name="openwrt-timemachine-$(sanitize_router_name "$ROUTER_NAME")"
                 GITHUB_REPO_URL="git@github.com:$GITHUB_USERNAME/$repo_name.git"
                 git --no-pager remote add origin "$GITHUB_REPO_URL" 2>/dev/null || git --no-pager remote set-url origin "$GITHUB_REPO_URL"
             fi
