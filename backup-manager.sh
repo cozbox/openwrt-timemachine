@@ -198,21 +198,8 @@ If you don't have one, we'll show you how to sign up." 12 70 3>&1 1>&2 2>&3
         return 1
     fi
     
-    if [ $exit_code -eq 0 ]; then
-        return 0
-    else
-        whiptail --title "Create GitHub Account" --msgbox "\
-Please visit this link to create a free GitHub account:
-
-https://github.com/signup
-
-It only takes a minute. Press OK when you're done." 12 70
-        local exit_code2=$?
-        if [ $exit_code2 -ne 0 ]; then
-            return 1
-        fi
-        return 0
-    fi
+    # User has GitHub, continue
+    return 0
 }
 
 # Setup wizard - Step 3: Get GitHub username
@@ -254,7 +241,10 @@ This lets GitHub recognize this router safely." 10 70
     
     mkdir -p "$HOME/.ssh"
     
-    if ssh-keygen -t ed25519 -N "" -f "$SSH_KEY_PATH" -C "openwrt-timemachine-$ROUTER_NAME" >/dev/null 2>&1; then
+    # Sanitize router name for SSH key comment
+    local sanitized_name=$(echo "$ROUTER_NAME" | tr ' ' '-' | tr -cd '[:alnum:]-')
+    
+    if ssh-keygen -t ed25519 -N "" -f "$SSH_KEY_PATH" -C "openwrt-timemachine-$sanitized_name" >/dev/null 2>&1; then
         print_success "Security key created"
         return 0
     else
@@ -399,8 +389,8 @@ Most people choose NOT to back these up.
 Do you want to continue backing up WiFi passwords?" 18 70 3>&1 1>&2 2>&3
         
         local exit_code2=$?
-        if [ $exit_code2 -ne 0 ] || [ $exit_code2 -eq 1 ]; then
-            # Remove wireless from selection
+        if [ $exit_code2 -ne 0 ]; then
+            # User cancelled or said no - remove wireless from selection
             BACKUP_FILES=$(echo "$BACKUP_FILES" | sed 's/"wireless"//g')
         fi
     fi
@@ -576,7 +566,7 @@ setup_cron() {
             ;;
     esac
     
-    # Remove old time machine cron jobs
+    # Remove old cron jobs (matches both old and new script names)
     if [ -f "$CRON_FILE" ]; then
         grep -v "backup-manager.sh" "$CRON_FILE" > "$CRON_FILE.tmp" 2>/dev/null || touch "$CRON_FILE.tmp"
         mv "$CRON_FILE.tmp" "$CRON_FILE"
@@ -1332,7 +1322,7 @@ EOF
 Which backup do you want to restore?" 20 78 12 $menu_items 3>&1 1>&2 2>&3)
     
     local exit_code=$?
-    if [ $exit_code -ne 0 ] || [ -z "$selected" ]; then
+    if [ $exit_code -ne 0 ]; then
         return
     fi
     
