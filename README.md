@@ -1,206 +1,293 @@
-# OpenWrt Git Manager
+# OpenWrt Backup Manager
 
-A comprehensive shell script for managing git repositories on OpenWrt routers with an intuitive whiptail-based menu interface. Designed specifically for OpenWrt users who may not be familiar with git command-line operations.
+**Never lose your router settings again!**
 
-## Features
+A simple backup tool for OpenWrt routers that automatically saves your settings online. No technical knowledge required - just answer a few questions and you're protected.
 
-- 🔑 **Automated SSH Key Setup** - Automatically generates SSH keys and guides you through GitHub setup
-- 📁 **Repository Finder** - Automatically discovers git repositories on your system
-- 📊 **Status View** - Easy-to-read repository status, branch info, and remote details
-- ⬇️ **Pull/Push** - Simple pull and push operations with clear error messages
-- 💾 **Commit Workflow** - Interactive file staging and commit with diff preview
-- 🌿 **Branch Management** - List, switch, and create branches with ease
-- 📦 **Clone Repositories** - Clone new repositories from GitHub
-- 📜 **Commit Log** - View recent commit history
+## What It Does
+
+- 💾 **Automatic Backups** - Saves your router settings daily, weekly, or monthly
+- ☁️ **Online Storage** - Keeps backups safe on GitHub (free, private account)
+- ⏮️ **Easy Restore** - Go back to any previous backup with one click
+- 📱 **Plain English** - No confusing technical terms
+- 🔒 **Secure** - Uses encrypted connections, settings stay private
+- 📦 **Package Recovery** - Remembers and reinstalls your packages after a reset
+
+## Who Is This For?
+
+- You've never used git (and don't need to know what it is)
+- You want to protect your router settings from being lost
+- You want automatic backups you don't have to think about
+- You might need to restore settings after a factory reset
 
 ## Requirements
 
-- OpenWrt router (tested on 24.10.2 aarch64)
-- Internet connection for initial setup
-- GitHub account
+- OpenWrt router
+- Internet connection
+- Free GitHub account (we'll show you how to sign up)
 
 ## Installation
 
-### Quick Install (Recommended)
+### Quick Install (One Command)
 
-Run this one-liner on your OpenWrt router:
+Run this on your OpenWrt router:
 
 ```sh
-wget -O - https://raw.githubusercontent.com/niyisurvey/gitwrt/main/install.sh | sh
+wget -O - https://raw.githubusercontent.com/niyisurvey/gitwrt/main/install-backup.sh | sh
 ```
 
 Or with curl:
 
 ```sh
-curl -L https://raw.githubusercontent.com/niyisurvey/gitwrt/main/install.sh | sh
+curl -L https://raw.githubusercontent.com/niyisurvey/gitwrt/main/install-backup.sh | sh
 ```
+
+That's it! The installer will:
+1. Install everything needed
+2. Download the backup manager
+3. Walk you through a simple setup wizard
+4. Create your first backup
+
+### What Gets Installed
+
+The installer will install these packages (if not already installed):
+- `git` - For backup storage
+- `whiptail` - For the menu interface  
+- `openssh-client` - For secure connections
+- `openssh-keygen` - For security keys
 
 ### Manual Installation
 
-1. **Install dependencies:**
+If you prefer to install manually:
 
 ```sh
+# Install dependencies
 opkg update
-opkg install git whiptail openssh-client openssh-keygen curl
-```
+opkg install git whiptail openssh-client openssh-keygen
 
-2. **Download the script:**
-
-```sh
+# Download and install
 cd /root
-wget https://raw.githubusercontent.com/niyisurvey/gitwrt/main/git-manager.sh
-chmod +x git-manager.sh
+wget https://raw.githubusercontent.com/niyisurvey/gitwrt/main/backup-manager.sh
+chmod +x backup-manager.sh
+ln -s /root/backup-manager.sh /usr/bin/backup
+
+# Run it
+backup
 ```
 
-3. **Create a symbolic link (optional):**
+## How To Use
+
+### First Time Setup
+
+When you run `backup` for the first time, it will guide you through:
+
+1. **Welcome** - Explains what the app does
+2. **GitHub Account** - Asks if you have one (shows you how to sign up if not)
+3. **Username** - Your GitHub username
+4. **Security Key** - Creates one automatically
+5. **Add Key to GitHub** - Shows you exactly where to paste it
+6. **Test Connection** - Makes sure everything works
+7. **Router Name** - What do you want to call this router?
+8. **Select Files** - Choose what to back up (has smart defaults)
+9. **Auto-Backup** - How often? (Daily, weekly, monthly, or manual)
+10. **First Backup** - Creates your first backup automatically
+11. **Done!** - You're protected!
+
+The whole process takes about 2 minutes.
+
+### Daily Use
+
+After setup, just run:
 
 ```sh
-ln -s /root/git-manager.sh /usr/bin/git-manager
+backup
 ```
 
-## Usage
+You'll see a menu with these options:
 
-### First Run
+```
+┌─────────────────────────────────────────────┐
+│  OpenWrt Backup Manager                     │
+├─────────────────────────────────────────────┤
+│  Router: Living Room Router                 │
+│  Last backup: 2 hours ago                   │
+│  Status: ✓ Everything saved                 │
+├─────────────────────────────────────────────┤
+│                                             │
+│  1. Backup Now                              │
+│  2. View Changes                            │
+│  3. Restore                                 │
+│  4. History                                 │
+│  5. Compare Backups                         │
+│  6. Health Check                            │
+│  7. Export Backup                           │
+│  8. Settings                                │
+│  9. Exit                                    │
+│                                             │
+└─────────────────────────────────────────────┘
+```
 
-When you run the script for the first time, it will:
+### Common Tasks
 
-1. Check for an SSH key at `~/.ssh/id_ed25519`
-2. Create one if it doesn't exist
-3. Display your public key
-4. Guide you to add it to GitHub at https://github.com/settings/ssh/new
-5. Test the GitHub SSH connection
-6. Ask for your GitHub username
-7. Set up the default repositories directory (default: `/root/repos/`)
+**Creating a backup:**
+1. Run `backup`
+2. Select "Backup Now"
+3. Review what changed
+4. Add a note (optional)
+5. Done!
 
-### Running the Script
+**Restoring settings:**
+1. Run `backup`
+2. Select "Restore"
+3. Pick which backup to restore
+4. Confirm
+5. Reboot if prompted
 
-Simply run:
+**Checking if everything is working:**
+1. Run `backup`
+2. Select "Health Check"
+3. Fix any issues if shown
+
+## What Gets Backed Up?
+
+You can choose what to protect during setup (you can change this later):
+
+- ✅ **Network settings** (recommended) - IP addresses, interfaces, VLANs
+- ✅ **Firewall rules** (recommended) - Port forwards, traffic rules
+- ✅ **DHCP settings** (recommended) - Static leases, DHCP options
+- ✅ **Installed packages** (recommended) - List of all your installed packages
+- ⚠️ **WiFi passwords** (optional, WARNING) - Only if you understand the risks
+- ⚙️ **System settings** (recommended) - Hostname, time zone, etc.
+- 🔧 **Everything** (advanced) - All files in /etc/config/
+
+**Note about WiFi passwords:** These are stored in your PRIVATE GitHub account. Only back these up if you understand that anyone who gets into your GitHub account could see them.
+
+## Disaster Recovery
+
+### If Your Router Gets Factory Reset
+
+1. Install OpenWrt again (if needed)
+2. Get internet connection working
+3. Run this command:
 
 ```sh
-git-manager
+wget -O - https://raw.githubusercontent.com/niyisurvey/gitwrt/main/recover.sh | sh
 ```
 
-Or:
+The recovery script will:
+- Install required tools
+- Ask for your GitHub username
+- Set up security key (guide you through adding it to GitHub)
+- Find your backup
+- Restore all your settings
+- Offer to reinstall all your packages
+- Install the backup manager
 
-```sh
-/root/git-manager.sh
-```
+Then just reboot and you're back to normal!
 
-### Main Menu Options
+## Multiple Routers
 
-1. **Select repository (Repo finder)** - Scans `/root/` and `/root/repos/` for git repositories
-2. **View status** - Shows current branch, remote URL, and repository status
-3. **Pull from remote** - Fetches and merges changes from the remote repository
-4. **Push to remote** - Pushes your local commits to the remote repository
-5. **Commit changes** - Interactive workflow:
-   - View diff of changed files
-   - Select files to stage
-   - Enter commit message
-   - Execute commit
-6. **Branch management** - List, switch, or create branches
-7. **Clone new repository** - Clone a new repository from GitHub
-8. **View commit log** - See the last 20 commits
-9. **Show diff** - View changes in working directory
-0. **Exit** - Exit the application
+You can use the same GitHub account for multiple routers:
 
-## Configuration
+- Each router gets its own name
+- Each router's backup is stored in a separate folder
+- You can switch between routers in Settings
 
-Configuration is stored in `~/.gitmanager.conf` with the following settings:
-
-- `GITHUB_USERNAME` - Your GitHub username
-- `REPOS_DIR` - Directory where repositories are stored
-
-You can manually edit this file or delete it to run the first-time setup again.
-
-## Tips for OpenWrt Users
-
-### Network Considerations
-
-- Ensure your router has internet access before running operations that require network (pull, push, clone)
-- The script checks GitHub connectivity during first-run setup
-
-### Storage Considerations
-
-- Git repositories can take up significant space
-- Consider using an external USB drive mounted at `/mnt/` for repositories if internal storage is limited
-- You can change the `REPOS_DIR` in the config file
-
-### Existing Repositories
-
-If you already have a git repository (like the example at `/root/openwrt-config`), the script will automatically discover it when you use the "Repo finder" option.
+Examples:
+- "Main Router" → backs up to `openwrt-backup-main-router`
+- "Living Room AP" → backs up to `openwrt-backup-living-room-ap`
 
 ## Troubleshooting
 
-### "Missing required tools" error
+### "Can't connect to internet"
 
-Install the missing packages:
+- Check that your router has internet access
+- Try: `ping github.com`
 
-```sh
-opkg update
-opkg install git whiptail openssh-client openssh-keygen
-```
+### "GitHub doesn't recognize this router"
 
-### SSH connection to GitHub fails
+This means your SSH key isn't added to GitHub:
 
-1. Ensure your SSH key is added to GitHub
-2. Check that your router can reach github.com:
+1. Run `backup`
+2. Go to Settings
+3. Select "Re-setup GitHub connection"
+4. Follow the instructions
 
-```sh
-ping -c 3 github.com
-ssh -T git@github.com
-```
+### "No changes since last backup"
 
-### "No repositories found"
+This is normal! It means everything is already backed up. Only changed settings get saved.
 
-The script searches `/root/` and the configured repos directory. If you have repositories elsewhere, you can:
+### "Couldn't upload to GitHub"
 
-1. Move them to `/root/repos/`
-2. Create symbolic links in `/root/repos/`
-3. Modify the `find_repos()` function in the script to search additional directories
+Your settings are still saved locally on the router. Check:
 
-### Permission errors
+1. Run Health Check to see what's wrong
+2. Test your GitHub connection
+3. Make sure you added the SSH key to GitHub
 
-Ensure the script is executable:
+### Storage Space Issues
 
-```sh
-chmod +x /root/git-manager.sh
-```
+Backups are small (usually < 1MB), but if you're tight on space:
 
-## Advanced Usage
+- Don't back up "Everything in /etc/config"
+- Just back up the recommended items
+- Use Export to save to a USB drive periodically
 
-### Running git commands directly
+## How It Works (For The Curious)
 
-While this tool simplifies git operations, you can always run git commands directly:
+The backup manager uses git behind the scenes to store your settings, but you never need to know that. Here's what actually happens:
 
-```sh
-cd /root/openwrt-config
-git status
-git log --oneline
-```
+1. **Backups** - Your settings files are copied to a folder and saved with a timestamp
+2. **Online Storage** - Uploaded to GitHub using secure SSH connections
+3. **History** - Every backup is kept, so you can go back to any point in time
+4. **Restore** - Files are copied back from a backup to your router
 
-### Customizing the script
+All the technical stuff is hidden. You just see plain English like "Backup Now" and "WiFi settings changed".
 
-The script is designed to be easily customizable. Edit `/root/git-manager.sh` to:
+## Security & Privacy
 
-- Add custom search directories in `find_repos()`
-- Modify colors in the color definitions section
-- Add new menu options in `main_menu()`
+- ✅ Your GitHub account is **private by default** - only you can see it
+- ✅ Connections use **SSH encryption** - nobody can intercept your backups
+- ✅ **No passwords** stored in the app - uses SSH keys instead
+- ⚠️ If you back up WiFi passwords, they're stored in your GitHub repo
+- ⚠️ If someone gets into your GitHub account, they can see your backups
+
+**Recommendation:** Don't back up WiFi passwords unless you really need to.
+
+## Files and Locations
+
+The backup manager stores files in these locations:
+
+- **Backup directory:** `/root/openwrt-backup/`
+- **Config file:** `~/.backupmanager/config`
+- **SSH key:** `~/.ssh/id_ed25519`
+- **Script:** `/root/backup-manager.sh`
+- **Command alias:** `/usr/bin/backup` → `/root/backup-manager.sh`
 
 ## Compatibility
 
-- **Shell:** OpenWrt's ash shell (POSIX-compliant, no bash-specific syntax)
-- **Interface:** whiptail (newt-based text UI)
-- **Git:** Uses `--no-pager` flag to prevent interactive pagers
-- **Tested on:** OpenWrt 24.10.2 (aarch64)
-
-## Contributing
-
-This tool is designed for OpenWrt routers. If you have improvements or find bugs, please submit issues or pull requests to the GitHub repository.
+- **Tested on:** OpenWrt 21.02, 22.03, 23.05, 24.10
+- **Shell:** Works in OpenWrt's ash shell (POSIX-compliant)
+- **Architecture:** All OpenWrt-supported architectures (ARM, x86, MIPS, etc.)
+- **Required space:** ~5MB for software + minimal for backups (< 1MB typically)
 
 ## License
 
-This project is open source. Feel free to use, modify, and distribute.
+This project is open source and free to use. Feel free to modify and share.
 
-## Author
+## Getting Help
 
-Created for the OpenWrt community to simplify git repository management on routers.
+If you run into problems:
+
+1. Run the **Health Check** (option 6 in the menu)
+2. Check the **Troubleshooting** section above
+3. Open an issue on GitHub with:
+   - What you were trying to do
+   - What error message you saw
+   - Output from Health Check
+
+## Credits
+
+Created for the OpenWrt community to make router configuration backups simple and automatic.
+
+No git knowledge required. No technical knowledge required. Just simple backups that work.
