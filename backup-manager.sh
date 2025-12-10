@@ -34,6 +34,54 @@ sanitize_router_name() {
     echo "$1" | tr ' ' '-' | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]-'
 }
 
+# Detect existing installations
+detect_existing_installation() {
+    local found_items=""
+    local found_count=0
+    
+    # Check for old backup directories
+    if [ -d "/root/openwrt-backup" ]; then
+        found_items="$found_items• Old backup directory: /root/openwrt-backup/\n"
+        found_count=$((found_count + 1))
+    fi
+    
+    # Check for old config files
+    if [ -d "$HOME/.backupmanager" ]; then
+        found_items="$found_items• Old config directory: ~/.backupmanager/\n"
+        found_count=$((found_count + 1))
+    fi
+    
+    # Check for existing backup with git
+    if [ -d "$BACKUP_DIR/.git" ]; then
+        found_items="$found_items• Existing backup directory: $BACKUP_DIR/\n"
+        found_count=$((found_count + 1))
+        
+        # Check if git remote is configured
+        if [ -f "$BACKUP_DIR/.git/config" ] && grep -q "url = " "$BACKUP_DIR/.git/config" 2>/dev/null; then
+            found_items="$found_items• Git remote already configured\n"
+        fi
+    fi
+    
+    # Check for SSH keys
+    if [ -f "$SSH_KEY_PATH" ]; then
+        found_items="$found_items• SSH key found: $SSH_KEY_PATH\n"
+        found_count=$((found_count + 1))
+    fi
+    
+    # If we found something, ask user
+    if [ $found_count -gt 0 ]; then
+        whiptail --title "Existing Installation Detected" --yesno "\
+Found existing backup data:
+
+$found_items
+Do you want to use this existing data?" 18 70 3>&1 1>&2 2>&3
+        
+        return $?
+    fi
+    
+    return 1  # Nothing found
+}
+
 # Print colored messages
 print_success() {
     printf "${GREEN}✓ %s${NC}\n" "$1"
@@ -773,6 +821,236 @@ get_backup_status() {
     echo "✓ Everything saved"
 }
 
+# Backup submenu
+backup_menu() {
+    local choice=$(whiptail --title "Backup" --menu "\
+Where do you want to save?
+
+Choose backup destination:" 16 70 4 \
+        "1" "This router" \
+        "2" "Online (GitHub)" \
+        "3" "Both" \
+        "4" "Back" \
+        3>&1 1>&2 2>&3)
+    
+    local exit_code=$?
+    if [ $exit_code -ne 0 ]; then
+        return 1  # Go back
+    fi
+    
+    case "$choice" in
+        1)
+            # Check if backup exists
+            if [ ! -d "$BACKUP_DIR/.git" ]; then
+                whiptail --title "No Backups Yet" --msgbox "\
+No backups on this router yet.
+
+Let's create your first backup!" 10 70
+                local exit_code2=$?
+                if [ $exit_code2 -ne 0 ]; then
+                    return 1
+                fi
+            fi
+            backup_now
+            ;;
+        2)
+            # Check if online backup is set up
+            if [ "$ONLINE_BACKUP_ENABLED" != "true" ]; then
+                # Check if we have local backups
+                if [ -d "$BACKUP_DIR/.git" ]; then
+                    cd "$BACKUP_DIR" || return 1
+                    local backup_count=$(git --no-pager rev-list --count HEAD 2>/dev/null || echo "0")
+                    
+                    if [ "$backup_count" -gt 0 ]; then
+                        whiptail --title "Enable Online Backup" --msgbox "\
+You have local backups already!
+
+Found: $backup_count restore points
+
+These will be uploaded to GitHub." 12 70
+                        local exit_code2=$?
+                        if [ $exit_code2 -ne 0 ]; then
+                            return 1
+                        fi
+                        
+                        local setup_choice=$(whiptail --title "Set Up Online Backup" --menu "\
+Choose how to set up online backup:" 14 70 3 \
+                            "1" "Set up new GitHub repo" \
+                            "2" "Use existing repo URL" \
+                            "3" "Back" \
+                            3>&1 1>&2 2>&3)
+                        
+                        local exit_code3=$?
+                        if [ $exit_code3 -ne 0 ]; then
+                            return 1
+                        fi
+                        
+                        case "$setup_choice" in
+                            1)
+                                setup_github_check || return 1
+                                setup_github_username || return 1
+                                setup_ssh_key || return 1
+                                setup_show_key || return 1
+                                
+                                while ! setup_test_connection; do
+                                    setup_show_key || return 1
+                                done
+                                
+                                ONLINE_BACKUP_ENABLED="true"
+                                
+                                if [ -d "$BACKUP_DIR/.git" ]; then
+                                    cd "$BACKUP_DIR" || return 1
+                                    local repo_name="openwrt-timemachine-$(sanitize_router_name "$ROUTER_NAME")"
+                                    GITHUB_REPO_URL="git@github.com:$GITHUB_USERNAME/$repo_name.git"
+                                    git --no-pager remote add origin "$GITHUB_REPO_URL" 2>/dev/null || git --no-pager remote set-url origin "$GITHUB_REPO_URL"
+                                fi
+                                
+                                save_config
+                                ;;
+                            2)
+                                connect_existing_repo || return 1
+                                save_config
+                                ;;
+                            3)
+                                return 1
+                                ;;
+                        esac
+                    else
+                        whiptail --title "Online Backup Not Set Up" --msgbox "\
+Online backup is not configured yet.
+
+Please set it up from Settings first." 10 70
+                        local exit_code2=$?
+                        if [ $exit_code2 -ne 0 ]; then
+                            return 1
+                        fi
+                        return 1
+                    fi
+                else
+                    whiptail --title "Online Backup Not Set Up" --msgbox "\
+Online backup is not configured yet.
+
+Please set it up from Settings first." 10 70
+                    local exit_code2=$?
+                    if [ $exit_code2 -ne 0 ]; then
+                        return 1
+                    fi
+                    return 1
+                fi
+            fi
+            sync_online
+            ;;
+        3)
+            # Both local and online
+            if [ ! -d "$BACKUP_DIR/.git" ]; then
+                whiptail --title "No Backups Yet" --msgbox "\
+No backups on this router yet.
+
+Let's create your first backup!" 10 70
+                local exit_code2=$?
+                if [ $exit_code2 -ne 0 ]; then
+                    return 1
+                fi
+            fi
+            backup_now
+            if [ $? -eq 0 ]; then
+                sync_online
+            fi
+            ;;
+        4)
+            return 1  # Back
+            ;;
+    esac
+    
+    return 0
+}
+
+# Restore submenu
+restore_menu() {
+    local choice=$(whiptail --title "Restore" --menu "\
+Where do you want to restore from?
+
+Choose restore source:" 14 70 3 \
+        "1" "This router" \
+        "2" "Online (GitHub)" \
+        "3" "Back" \
+        3>&1 1>&2 2>&3)
+    
+    local exit_code=$?
+    if [ $exit_code -ne 0 ]; then
+        return 1  # Go back
+    fi
+    
+    case "$choice" in
+        1)
+            if [ ! -d "$BACKUP_DIR/.git" ]; then
+                whiptail --title "No Backups" --msgbox "\
+No backups on this router yet.
+
+Create a backup first!" 10 70
+                local exit_code2=$?
+                if [ $exit_code2 -ne 0 ]; then
+                    return 1
+                fi
+                return 1
+            fi
+            restore_backup
+            ;;
+        2)
+            if [ "$ONLINE_BACKUP_ENABLED" != "true" ]; then
+                whiptail --title "Online Backup Not Set Up" --msgbox "\
+Online backup is not configured.
+
+Please set up online backup from Settings first." 10 70
+                local exit_code2=$?
+                if [ $exit_code2 -ne 0 ]; then
+                    return 1
+                fi
+                return 1
+            fi
+            restore_from_online
+            ;;
+        3)
+            return 1  # Back
+            ;;
+    esac
+    
+    return 0
+}
+
+# View backups submenu
+view_backups_menu() {
+    local choice=$(whiptail --title "View Backups" --menu "\
+What would you like to view?" 16 70 4 \
+        "1" "Local backups" \
+        "2" "Online backups" \
+        "3" "Compare backups" \
+        "4" "Back" \
+        3>&1 1>&2 2>&3)
+    
+    local exit_code=$?
+    if [ $exit_code -ne 0 ]; then
+        return 1  # Go back
+    fi
+    
+    case "$choice" in
+        1)
+            show_history
+            ;;
+        2)
+            view_online_backups
+            ;;
+        3)
+            compare_backups
+            ;;
+        4)
+            return 1  # Back
+            ;;
+    esac
+    
+    return 0
+}
+
 # Main menu
 show_main_menu() {
     local last_backup=$(get_last_backup_time)
@@ -783,34 +1061,11 @@ Router: $ROUTER_NAME
 Last backup: $last_backup
 Status: $status
 
-BACKUP
-  1. Backup now (save to this router)
-  2. Sync online (upload to GitHub)
-
-RESTORE
-  3. Restore from router
-  4. Restore from online
-
-VIEW
-  5. View local backups
-  6. View online backups
-  7. Compare backups
-
-OTHER
-  8. Health check
-  9. Export (USB/download)
- 10. Settings
-  0. Exit" 30 70 11 \
-        "1" "Backup now (save to this router)" \
-        "2" "Sync online (upload to GitHub)" \
-        "3" "Restore from router" \
-        "4" "Restore from online" \
-        "5" "View local backups" \
-        "6" "View online backups" \
-        "7" "Compare backups" \
-        "8" "Health check" \
-        "9" "Export (USB/download)" \
-        "10" "Settings" \
+Choose an option:" 18 70 5 \
+        "1" "Backup" \
+        "2" "Restore" \
+        "3" "View backups" \
+        "4" "Settings" \
         "0" "Exit" \
         3>&1 1>&2 2>&3)
     
@@ -820,16 +1075,10 @@ OTHER
     fi
     
     case "$choice" in
-        1) backup_now ;;
-        2) sync_online ;;
-        3) restore_backup ;;
-        4) restore_from_online ;;
-        5) show_history ;;
-        6) view_online_backups ;;
-        7) compare_backups ;;
-        8) health_check ;;
-        9) export_backup ;;
-        10) settings_menu ;;
+        1) backup_menu ;;
+        2) restore_menu ;;
+        3) view_backups_menu ;;
+        4) settings_menu ;;
         0) return 1 ;;
         *) return 0 ;;
     esac
@@ -933,25 +1182,25 @@ What would you like to do?" 15 70 3 \
         
         local exit_code=$?
         if [ $exit_code -ne 0 ]; then
-            return
+            return 1
         fi
         
         case "$choice" in
             1)
-                setup_github_check || return
-                setup_github_username || return
-                setup_ssh_key || return
-                setup_show_key || return
+                setup_github_check || return 1
+                setup_github_username || return 1
+                setup_ssh_key || return 1
+                setup_show_key || return 1
                 
                 while ! setup_test_connection; do
-                    setup_show_key || return
+                    setup_show_key || return 1
                 done
                 
                 ONLINE_BACKUP_ENABLED="true"
                 
                 # Set up remote
                 if [ -d "$BACKUP_DIR/.git" ]; then
-                    cd "$BACKUP_DIR" || return
+                    cd "$BACKUP_DIR" || return 1
                     local repo_name="openwrt-timemachine-$(sanitize_router_name "$ROUTER_NAME")"
                     GITHUB_REPO_URL="git@github.com:$GITHUB_USERNAME/$repo_name.git"
                     git --no-pager remote add origin "$GITHUB_REPO_URL" 2>/dev/null || git --no-pager remote set-url origin "$GITHUB_REPO_URL"
@@ -960,21 +1209,25 @@ What would you like to do?" 15 70 3 \
                 save_config
                 ;;
             2)
-                connect_existing_repo || return
+                connect_existing_repo || return 1
                 save_config
                 ;;
             3)
-                return
+                return 1
                 ;;
         esac
     fi
     
     if [ ! -d "$BACKUP_DIR/.git" ]; then
         whiptail --title "Error" --msgbox "No local backup found. Create a backup first." 8 70
-        return
+        local exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+            return 1
+        fi
+        return 1
     fi
     
-    cd "$BACKUP_DIR" || return
+    cd "$BACKUP_DIR" || return 1
     
     # Check if there's a remote configured
     if ! git --no-pager config --get remote.origin.url >/dev/null 2>&1; then
@@ -982,7 +1235,11 @@ What would you like to do?" 15 70 3 \
 No online backup location configured.
 
 Please set up online backup from Settings first." 10 70
-        return
+        local exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+            return 1
+        fi
+        return 1
     fi
     
     # Try to push
@@ -994,6 +1251,10 @@ Please set up online backup from Settings first." 10 70
 ✓ Backup synced to GitHub successfully!
 
 Your router is protected online." 10 70
+        local exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+            return 1
+        fi
     else
         local error_msg=$(translate_error "$push_output")
         whiptail --title "Sync Failed" --msgbox "\
@@ -1002,7 +1263,13 @@ Your router is protected online." 10 70
 Error: $error_msg
 
 Your backup is still safe on this router." 12 70
+        local exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+            return 1
+        fi
     fi
+    
+    return 0
 }
 
 # Restore from online
@@ -1013,15 +1280,23 @@ restore_from_online() {
 Online backup is not configured.
 
 Please set up online backup from Settings first." 10 70
-        return
+        local exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+            return 1
+        fi
+        return 1
     fi
     
     if [ ! -d "$BACKUP_DIR/.git" ]; then
         whiptail --title "Error" --msgbox "No local backup found." 8 70
-        return
+        local exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+            return 1
+        fi
+        return 1
     fi
     
-    cd "$BACKUP_DIR" || return
+    cd "$BACKUP_DIR" || return 1
     
     # Check if there's a remote configured
     if ! git --no-pager config --get remote.origin.url >/dev/null 2>&1; then
@@ -1029,7 +1304,11 @@ Please set up online backup from Settings first." 10 70
 No online backup location configured.
 
 Please set up online backup from Settings first." 10 70
-        return
+        local exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+            return 1
+        fi
+        return 1
     fi
     
     # Fetch from remote
@@ -1042,7 +1321,11 @@ Please set up online backup from Settings first." 10 70
 Couldn't download from GitHub.
 
 Error: $error_msg" 12 70
-        return
+        local exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+            return 1
+        fi
+        return 1
     fi
     
     # Show available backups from remote
@@ -1050,7 +1333,11 @@ Error: $error_msg" 12 70
     
     if [ -z "$log" ]; then
         whiptail --title "No Online Backups" --msgbox "No backups available online." 8 70
-        return
+        local exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+            return 1
+        fi
+        return 1
     fi
     
     # Build menu items
@@ -1069,11 +1356,11 @@ Which online backup do you want to restore?" 20 78 12 $menu_items 3>&1 1>&2 2>&3
     
     local exit_code=$?
     if [ $exit_code -ne 0 ]; then
-        return
+        return 1
     fi
     
     if [ -z "$selected" ]; then
-        return
+        return 1
     fi
     
     # Confirm restore
@@ -1086,7 +1373,7 @@ This action can be undone by restoring a different backup." 14 78 3>&1 1>&2 2>&3
     
     local exit_code2=$?
     if [ $exit_code2 -ne 0 ]; then
-        return
+        return 1
     fi
     
     # Perform restore
@@ -1101,9 +1388,14 @@ This action can be undone by restoring a different backup." 14 78 3>&1 1>&2 2>&3
 
 You may need to reboot your router for all changes to take effect." 12 70
         
-        whiptail --title "Reboot?" --yesno "Reboot router now?" 8 50 3>&1 1>&2 2>&3
         local exit_code3=$?
-        if [ $exit_code3 -eq 0 ]; then
+        if [ $exit_code3 -ne 0 ]; then
+            return 1
+        fi
+        
+        whiptail --title "Reboot?" --yesno "Reboot router now?" 8 50 3>&1 1>&2 2>&3
+        local exit_code4=$?
+        if [ $exit_code4 -eq 0 ]; then
             reboot
         fi
     else
@@ -1111,7 +1403,13 @@ You may need to reboot your router for all changes to take effect." 12 70
 Failed to restore backup.
 
 Your current settings are unchanged." 10 70
+        local exit_code3=$?
+        if [ $exit_code3 -ne 0 ]; then
+            return 1
+        fi
     fi
+    
+    return 0
 }
 
 # View online backups
@@ -1122,15 +1420,23 @@ view_online_backups() {
 Online backup is not configured.
 
 Please set up online backup from Settings first." 10 70
-        return
+        local exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+            return 1
+        fi
+        return 1
     fi
     
     if [ ! -d "$BACKUP_DIR/.git" ]; then
         whiptail --title "Error" --msgbox "No local backup found." 8 70
-        return
+        local exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+            return 1
+        fi
+        return 1
     fi
     
-    cd "$BACKUP_DIR" || return
+    cd "$BACKUP_DIR" || return 1
     
     # Check if there's a remote configured
     if ! git --no-pager config --get remote.origin.url >/dev/null 2>&1; then
@@ -1138,7 +1444,11 @@ Please set up online backup from Settings first." 10 70
 No online backup location configured.
 
 Please set up online backup from Settings first." 10 70
-        return
+        local exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+            return 1
+        fi
+        return 1
     fi
     
     # Fetch from remote
@@ -1150,7 +1460,11 @@ Please set up online backup from Settings first." 10 70
     
     if [ -z "$log" ]; then
         whiptail --title "No Online Backups" --msgbox "No backups available online." 8 70
-        return
+        local exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+            return 1
+        fi
+        return 1
     fi
     
     # Build menu items
@@ -1169,14 +1483,20 @@ All your online backups (most recent first):" 20 78 12 $menu_items 3>&1 1>&2 2>&
     
     local exit_code=$?
     if [ $exit_code -ne 0 ]; then
-        return
+        return 1
     fi
     
     if [ -n "$selected" ]; then
         # Show details of selected backup
         local details=$(git --no-pager show --stat "$selected" 2>/dev/null)
         whiptail --title "Backup Details" --msgbox "$details" 25 100 --scrolltext
+        local exit_code2=$?
+        if [ $exit_code2 -ne 0 ]; then
+            return 1
+        fi
     fi
+    
+    return 0
 }
 
 # View changes since last backup
@@ -1228,16 +1548,24 @@ Use 'Backup Now' to save these changes." 18 70
 show_history() {
     if [ ! -d "$BACKUP_DIR/.git" ]; then
         whiptail --title "Error" --msgbox "No backups found." 8 70
-        return
+        local exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+            return 1
+        fi
+        return 1
     fi
     
-    cd "$BACKUP_DIR" || return
+    cd "$BACKUP_DIR" || return 1
     
     local log=$(git --no-pager log --format="%h|%ar|%s" -20 2>/dev/null)
     
     if [ -z "$log" ]; then
         whiptail --title "No History" --msgbox "No backup history found." 8 70
-        return
+        local exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+            return 1
+        fi
+        return 1
     fi
     
     # Build menu items
@@ -1256,30 +1584,44 @@ All your backups (most recent first):" 20 78 12 $menu_items 3>&1 1>&2 2>&3)
     
     local exit_code=$?
     if [ $exit_code -ne 0 ]; then
-        return
+        return 1
     fi
     
     if [ -n "$selected" ]; then
         # Show details of selected backup
         local details=$(git --no-pager show --stat "$selected" 2>/dev/null)
         whiptail --title "Backup Details" --msgbox "$details" 25 100 --scrolltext
+        local exit_code2=$?
+        if [ $exit_code2 -ne 0 ]; then
+            return 1
+        fi
     fi
+    
+    return 0
 }
 
 # Restore from backup
 restore_backup() {
     if [ ! -d "$BACKUP_DIR/.git" ]; then
         whiptail --title "Error" --msgbox "No backups found." 8 70
-        return
+        local exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+            return 1
+        fi
+        return 1
     fi
     
-    cd "$BACKUP_DIR" || return
+    cd "$BACKUP_DIR" || return 1
     
     local log=$(git --no-pager log --format="%h|%ar|%s" -20 2>/dev/null)
     
     if [ -z "$log" ]; then
         whiptail --title "No Backups" --msgbox "No backups available to restore." 8 70
-        return
+        local exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+            return 1
+        fi
+        return 1
     fi
     
     # Build menu items
@@ -1298,7 +1640,11 @@ Which backup do you want to restore?" 20 78 12 $menu_items 3>&1 1>&2 2>&3)
     
     local exit_code=$?
     if [ $exit_code -ne 0 ]; then
-        return
+        return 1
+    fi
+    
+    if [ -z "$selected" ]; then
+        return 1
     fi
     
     # Show what will change
@@ -1318,7 +1664,7 @@ This action can be undone by restoring a different backup." 20 78 3>&1 1>&2 2>&3
     
     local exit_code2=$?
     if [ $exit_code2 -ne 0 ]; then
-        return
+        return 1
     fi
     
     # Perform restore
@@ -1333,9 +1679,14 @@ This action can be undone by restoring a different backup." 20 78 3>&1 1>&2 2>&3
 
 You may need to reboot your router for all changes to take effect." 12 70
         
-        whiptail --title "Reboot?" --yesno "Reboot router now?" 8 50 3>&1 1>&2 2>&3
         local exit_code3=$?
-        if [ $exit_code3 -eq 0 ]; then
+        if [ $exit_code3 -ne 0 ]; then
+            return 1
+        fi
+        
+        whiptail --title "Reboot?" --yesno "Reboot router now?" 8 50 3>&1 1>&2 2>&3
+        local exit_code4=$?
+        if [ $exit_code4 -eq 0 ]; then
             reboot
         fi
     else
@@ -1343,23 +1694,37 @@ You may need to reboot your router for all changes to take effect." 12 70
 Failed to restore backup.
 
 Your current settings are unchanged." 10 70
+        local exit_code3=$?
+        if [ $exit_code3 -ne 0 ]; then
+            return 1
+        fi
     fi
+    
+    return 0
 }
 
 # Compare two backups
 compare_backups() {
     if [ ! -d "$BACKUP_DIR/.git" ]; then
         whiptail --title "Error" --msgbox "No backups found." 8 70
-        return
+        local exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+            return 1
+        fi
+        return 1
     fi
     
-    cd "$BACKUP_DIR" || return
+    cd "$BACKUP_DIR" || return 1
     
     local log=$(git --no-pager log --format="%h|%ar|%s" -20 2>/dev/null)
     
     if [ -z "$log" ]; then
         whiptail --title "No Backups" --msgbox "Not enough backups to compare." 8 70
-        return
+        local exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+            return 1
+        fi
+        return 1
     fi
     
     # Build menu items
@@ -1376,15 +1741,25 @@ EOF
     local first=$(whiptail --title "Compare Backups - Select First" --menu "\
 Select the first backup:" 20 78 12 $menu_items 3>&1 1>&2 2>&3)
     
-    if [ $? -ne 0 ] || [ -z "$first" ]; then
-        return
+    local exit_code=$?
+    if [ $exit_code -ne 0 ]; then
+        return 1
+    fi
+    
+    if [ -z "$first" ]; then
+        return 1
     fi
     
     local second=$(whiptail --title "Compare Backups - Select Second" --menu "\
 Select the second backup:" 20 78 12 $menu_items 3>&1 1>&2 2>&3)
     
-    if [ $? -ne 0 ] || [ -z "$second" ]; then
-        return
+    local exit_code2=$?
+    if [ $exit_code2 -ne 0 ]; then
+        return 1
+    fi
+    
+    if [ -z "$second" ]; then
+        return 1
     fi
     
     # Show differences
@@ -1395,12 +1770,22 @@ Select the second backup:" 20 78 12 $menu_items 3>&1 1>&2 2>&3)
 These two backups are identical.
 
 No changes between them." 10 70
+        local exit_code3=$?
+        if [ $exit_code3 -ne 0 ]; then
+            return 1
+        fi
     else
         whiptail --title "What Changed" --msgbox "\
 Differences between the two backups:
 
 $diff" 25 100 --scrolltext
+        local exit_code3=$?
+        if [ $exit_code3 -ne 0 ]; then
+            return 1
+        fi
     fi
+    
+    return 0
 }
 
 # Health check
@@ -1456,7 +1841,7 @@ health_check() {
     
     # Count restore points
     if [ -d "$BACKUP_DIR/.git" ]; then
-        cd "$BACKUP_DIR" || return
+        cd "$BACKUP_DIR" || return 1
         local backup_count=$(git --no-pager rev-list --count HEAD 2>/dev/null || echo "0")
         report="$report✓ $backup_count restore points available\n"
     fi
@@ -1472,17 +1857,24 @@ health_check() {
 $report
 " 20 70
     
+    local exit_code=$?
+    if [ $exit_code -ne 0 ]; then
+        return 1
+    fi
+    
     if [ $warnings -gt 0 ]; then
         whiptail --title "Issues Found" --yesno "\
 Found $warnings issue(s).
 
 Want to test the connection to GitHub?" 10 70 3>&1 1>&2 2>&3
         
-        local exit_code=$?
-        if [ $exit_code -eq 0 ]; then
+        local exit_code2=$?
+        if [ $exit_code2 -eq 0 ]; then
             test_github_connection
         fi
     fi
+    
+    return 0
 }
 
 # Test GitHub connection
@@ -1497,6 +1889,10 @@ test_github_connection() {
 ✓ Connected to GitHub successfully!
 
 $test_output" 12 78
+        local exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+            return 1
+        fi
     else
         local error_msg=$(translate_error "$test_output")
         whiptail --title "Connection Failed" --msgbox "\
@@ -1508,40 +1904,24 @@ $test_output
 
 Want to re-setup the connection?" 16 78
         
-        whiptail --title "Re-setup?" --yesno "Re-setup GitHub connection?" 8 50 3>&1 1>&2 2>&3
         local exit_code=$?
-        if [ $exit_code -eq 0 ]; then
-            setup_ssh_key
-            setup_show_key
+        if [ $exit_code -ne 0 ]; then
+            return 1
+        fi
+        
+        whiptail --title "Re-setup?" --yesno "Re-setup GitHub connection?" 8 50 3>&1 1>&2 2>&3
+        local exit_code2=$?
+        if [ $exit_code2 -eq 0 ]; then
+            setup_ssh_key || return 1
+            setup_show_key || return 1
             test_github_connection
         fi
     fi
+    
+    return 0
 }
 
-# Export backup
-export_backup() {
-    local choice=$(whiptail --title "Export Backup" --menu "\
-Where do you want to export your backup?" 15 70 4 \
-        "1" "USB drive (auto-detect)" \
-        "2" "Download via SCP (show instructions)" \
-        "3" "Send to another server" \
-        "4" "Back" \
-        3>&1 1>&2 2>&3)
-    
-    local exit_code=$?
-    if [ $exit_code -ne 0 ]; then
-        return
-    fi
-    
-    case "$choice" in
-        1) export_to_usb ;;
-        2) export_scp_instructions ;;
-        3) export_to_server ;;
-        4) return ;;
-    esac
-}
-
-# Export to USB
+# Export to USB (moved into settings)
 export_to_usb() {
     # Find mounted USB drives
     local usb_mounts=$(mount | grep -E "sd[a-z][0-9]" | awk '{print $3}')
@@ -1565,7 +1945,12 @@ Please plug in a USB drive and try again." 10 70
     local selected=$(whiptail --title "Select USB Drive" --menu "\
 Select where to save the backup:" 15 70 5 $menu_items 3>&1 1>&2 2>&3)
     
-    if [ $? -ne 0 ] || [ -z "$selected" ]; then
+    local exit_code=$?
+    if [ $exit_code -ne 0 ]; then
+        return
+    fi
+    
+    if [ -z "$selected" ]; then
         return
     fi
     
@@ -1595,94 +1980,67 @@ Failed to create backup archive." 8 70
     fi
 }
 
-# Show SCP download instructions
-export_scp_instructions() {
-    local archive_name="openwrt-timemachine-$(date +%Y%m%d-%H%M%S).tar.gz"
-    
-    if tar -czf "/tmp/$archive_name" -C "$BACKUP_DIR" . 2>/dev/null; then
-        local router_ip=$(ip addr show br-lan | grep "inet " | awk '{print $2}' | cut -d/ -f1)
-        
-        whiptail --title "Download Backup" --msgbox "\
-Backup archive created!
-
-From your computer, run this command:
-
-scp root@${router_ip}:/tmp/$archive_name ~/Downloads/
-
-This will download the backup to your Downloads folder.
-
-The file will be deleted from the router when you close this message." 16 78
-        
-        rm "/tmp/$archive_name"
-    else
-        whiptail --title "Failed" --msgbox "Failed to create backup archive." 8 70
-    fi
-}
-
-# Export to another server
-export_to_server() {
-    local server=$(whiptail --title "Server Address" --inputbox "\
-Enter the destination server address:
-
-Format: user@hostname:/path/to/backup/" 12 70 3>&1 1>&2 2>&3)
-    
-    if [ $? -ne 0 ] || [ -z "$server" ]; then
-        return
-    fi
-    
-    local archive_name="openwrt-timemachine-$(date +%Y%m%d-%H%M%S).tar.gz"
-    
-    if tar -czf "/tmp/$archive_name" -C "$BACKUP_DIR" . 2>/dev/null; then
-        whiptail --title "Uploading..." --infobox "Uploading backup to server..." 5 50
-        
-        if scp "/tmp/$archive_name" "$server" 2>/dev/null; then
-            whiptail --title "Upload Complete!" --msgbox "\
-✓ Backup uploaded successfully!
-
-Sent to: $server" 10 70
-        else
-            whiptail --title "Upload Failed" --msgbox "\
-Failed to upload backup.
-
-Check the server address and your SSH keys." 10 70
-        fi
-        
-        rm "/tmp/$archive_name"
-    else
-        whiptail --title "Failed" --msgbox "Failed to create backup archive." 8 70
-    fi
-}
-
 # Settings menu
 settings_menu() {
     local choice=$(whiptail --title "Settings" --menu "\
-Configure Time Machine:" 18 70 8 \
+Configure Time Machine:" 20 70 8 \
         "1" "Change router name" \
         "2" "Change what's backed up" \
         "3" "Change auto-backup schedule" \
-        "4" "Setup/change online backup" \
-        "5" "Test GitHub connection" \
-        "6" "View configuration" \
-        "7" "Back to main menu" \
+        "4" "Online backup settings" \
+        "5" "Export to USB" \
+        "6" "Health check" \
+        "7" "View configuration" \
+        "8" "Back" \
         3>&1 1>&2 2>&3)
     
     local exit_code=$?
     if [ $exit_code -ne 0 ]; then
-        return
+        return 1  # Go back
     fi
     
     case "$choice" in
-        1) settings_change_name ;;
-        2) setup_select_files; save_config ;;
-        3) setup_auto_backup; save_config; setup_cron ;;
-        4) settings_setup_online ;;
-        5) test_github_connection ;;
-        6) settings_view_config ;;
-        7) return ;;
+        1) 
+            settings_change_name
+            local result=$?
+            if [ $result -ne 0 ]; then
+                return 0  # Stay in settings if cancelled
+            fi
+            ;;
+        2) 
+            setup_select_files
+            local result=$?
+            if [ $result -eq 0 ]; then
+                save_config
+            fi
+            ;;
+        3) 
+            setup_auto_backup
+            local result=$?
+            if [ $result -eq 0 ]; then
+                save_config
+                setup_cron
+            fi
+            ;;
+        4) 
+            settings_setup_online
+            ;;
+        5) 
+            export_to_usb
+            ;;
+        6) 
+            health_check
+            ;;
+        7) 
+            settings_view_config
+            ;;
+        8) 
+            return 1  # Back to main menu
+            ;;
     esac
     
-    # Return to settings menu
-    settings_menu
+    # Continue in settings menu
+    return 0
 }
 
 # Setup/change online backup
@@ -1696,25 +2054,25 @@ Configure online backup:" 15 70 3 \
     
     local exit_code=$?
     if [ $exit_code -ne 0 ]; then
-        return
+        return 1  # Go back
     fi
     
     case "$choice" in
         1)
-            setup_github_check || return
-            setup_github_username || return
-            setup_ssh_key || return
-            setup_show_key || return
+            setup_github_check || return 1
+            setup_github_username || return 1
+            setup_ssh_key || return 1
+            setup_show_key || return 1
             
             while ! setup_test_connection; do
-                setup_show_key || return
+                setup_show_key || return 1
             done
             
             ONLINE_BACKUP_ENABLED="true"
             
             # Set up remote
             if [ -d "$BACKUP_DIR/.git" ]; then
-                cd "$BACKUP_DIR" || return
+                cd "$BACKUP_DIR" || return 1
                 local repo_name="openwrt-timemachine-$(sanitize_router_name "$ROUTER_NAME")"
                 GITHUB_REPO_URL="git@github.com:$GITHUB_USERNAME/$repo_name.git"
                 git --no-pager remote add origin "$GITHUB_REPO_URL" 2>/dev/null || git --no-pager remote set-url origin "$GITHUB_REPO_URL"
@@ -1723,7 +2081,7 @@ Configure online backup:" 15 70 3 \
             save_config
             ;;
         2)
-            connect_existing_repo || return
+            connect_existing_repo || return 1
             save_config
             ;;
         3)
@@ -1733,8 +2091,14 @@ Configure online backup:" 15 70 3 \
 Online backup has been disabled.
 
 You can re-enable it anytime from Settings." 10 70
+            local exit_code2=$?
+            if [ $exit_code2 -ne 0 ]; then
+                return 1
+            fi
             ;;
     esac
+    
+    return 0
 }
 
 # Change router name
@@ -1812,7 +2176,55 @@ main() {
     
     # Run setup wizard if not configured
     if [ ! -f "$CONFIG_FILE" ] || [ -z "$ROUTER_NAME" ]; then
-        run_setup_wizard
+        # Check for existing installations first
+        if detect_existing_installation; then
+            # User wants to use existing data
+            # Try to load router name from git config
+            if [ -d "$BACKUP_DIR/.git" ]; then
+                cd "$BACKUP_DIR" || exit 1
+                ROUTER_NAME=$(git --no-pager config user.name 2>/dev/null || echo "")
+                
+                # Check if remote is configured
+                if git --no-pager config --get remote.origin.url >/dev/null 2>&1; then
+                    ONLINE_BACKUP_ENABLED="true"
+                    GITHUB_REPO_URL=$(git --no-pager config --get remote.origin.url 2>/dev/null || echo "")
+                    
+                    # Extract username from URL if possible
+                    if echo "$GITHUB_REPO_URL" | grep -q "github.com"; then
+                        GITHUB_USERNAME=$(echo "$GITHUB_REPO_URL" | sed -n 's/.*github.com[:/]\([^/]*\)\/.*/\1/p')
+                    fi
+                fi
+            fi
+            
+            # If we still don't have a router name, ask for one
+            if [ -z "$ROUTER_NAME" ]; then
+                setup_router_name || exit 1
+            fi
+            
+            # Set default backup files if not set
+            if [ -z "$BACKUP_FILES" ]; then
+                BACKUP_FILES="$DEFAULT_BACKUP_FILES"
+            fi
+            
+            # Set default schedule if not set
+            if [ -z "$BACKUP_SCHEDULE" ]; then
+                BACKUP_SCHEDULE="never"
+            fi
+            
+            save_config
+            
+            whiptail --title "Setup Complete" --msgbox "\
+✓ Using existing backup data!
+
+Router: $ROUTER_NAME
+Backup directory: $BACKUP_DIR
+Online backup: $ONLINE_BACKUP_ENABLED
+
+You can now use OpenWrt Time Machine." 14 70
+        else
+            # No existing data or user wants fresh start
+            run_setup_wizard
+        fi
     fi
     
     # Main menu loop
