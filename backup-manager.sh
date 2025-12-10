@@ -461,7 +461,7 @@ setup_cron() {
     
     # Remove old backup manager cron jobs
     if [ -f "$CRON_FILE" ]; then
-        grep -v "backup-manager.sh" "$CRON_FILE" > "$CRON_FILE.tmp" || true
+        grep -v "backup-manager.sh" "$CRON_FILE" > "$CRON_FILE.tmp" 2>/dev/null || touch "$CRON_FILE.tmp"
         mv "$CRON_FILE.tmp" "$CRON_FILE"
     fi
     
@@ -599,7 +599,7 @@ Your settings are already saved." 10 70
     
     # Translate changes to plain English
     local plain_changes=""
-    echo "$changes" | while read -r line; do
+    while read -r line; do
         local status=$(echo "$line" | awk '{print $1}')
         local file=$(echo "$line" | awk '{print $2}')
         local description=$(file_to_description "$file")
@@ -610,7 +610,9 @@ Your settings are already saved." 10 70
             D) plain_changes="$plain_changes🗑️ $description removed\n" ;;
             *) plain_changes="$plain_changes• $description modified\n" ;;
         esac
-    done
+    done << EOF
+$changes
+EOF
     
     # Show what will be backed up
     whiptail --title "What Will Be Saved" --msgbox "\
@@ -693,7 +695,7 @@ Everything is the same as your last saved settings." 10 70
     
     # Build plain English description
     local description=""
-    echo "$changes" | while read -r line; do
+    while read -r line; do
         local status=$(echo "$line" | awk '{print $1}')
         local file=$(echo "$line" | awk '{print $2}')
         local desc=$(file_to_description "$file")
@@ -704,7 +706,9 @@ Everything is the same as your last saved settings." 10 70
             D) description="$description🗑️ $desc removed\n" ;;
             *) description="$description• $desc modified\n" ;;
         esac
-    done
+    done << EOF
+$changes
+EOF
     
     whiptail --title "What's Different" --msgbox "\
 Changes since your last backup:
@@ -732,12 +736,14 @@ show_history() {
     
     # Build menu items
     local menu_items=""
-    echo "$log" | while read -r line; do
+    while read -r line; do
         local hash=$(echo "$line" | cut -d'|' -f1)
         local time=$(echo "$line" | cut -d'|' -f2)
         local msg=$(echo "$line" | cut -d'|' -f3)
         menu_items="$menu_items$hash \"$time - $msg\" "
-    done
+    done << EOF
+$log
+EOF
     
     local selected=$(whiptail --title "Backup History" --menu "\
 All your backups (most recent first):" 20 78 12 $menu_items 3>&1 1>&2 2>&3)
@@ -767,12 +773,14 @@ restore_backup() {
     
     # Build menu items
     local menu_items=""
-    echo "$log" | while read -r line; do
+    while read -r line; do
         local hash=$(echo "$line" | cut -d'|' -f1)
         local time=$(echo "$line" | cut -d'|' -f2)
         local msg=$(echo "$line" | cut -d'|' -f3)
         menu_items="$menu_items$hash \"$time - $msg\" "
-    done
+    done << EOF
+$log
+EOF
     
     local selected=$(whiptail --title "Restore Backup" --menu "\
 Which backup do you want to restore?" 20 78 12 $menu_items 3>&1 1>&2 2>&3)
@@ -841,12 +849,14 @@ compare_backups() {
     
     # Build menu items
     local menu_items=""
-    echo "$log" | while read -r line; do
+    while read -r line; do
         local hash=$(echo "$line" | cut -d'|' -f1)
         local time=$(echo "$line" | cut -d'|' -f2)
         local msg=$(echo "$line" | cut -d'|' -f3)
         menu_items="$menu_items$hash \"$time - $msg\" "
-    done
+    done << EOF
+$log
+EOF
     
     local first=$(whiptail --title "Compare Backups - Select First" --menu "\
 Select the first backup:" 20 78 12 $menu_items 3>&1 1>&2 2>&3)
