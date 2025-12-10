@@ -74,7 +74,7 @@ detect_existing_installation() {
 Found existing backup data:
 
 $found_items
-Do you want to use this existing data?" 18 70 3>&1 1>&2 2>&3
+Do you want to use this existing data?" 18 70
         
         return $?
     fi
@@ -1369,7 +1369,7 @@ Are you sure you want to restore this backup from online?
 
 This will change your router settings.
 
-This action can be undone by restoring a different backup." 14 78 3>&1 1>&2 2>&3
+This action can be undone by restoring a different backup." 14 78
     
     local exit_code2=$?
     if [ $exit_code2 -ne 0 ]; then
@@ -1393,7 +1393,7 @@ You may need to reboot your router for all changes to take effect." 12 70
             return 1
         fi
         
-        whiptail --title "Reboot?" --yesno "Reboot router now?" 8 50 3>&1 1>&2 2>&3
+        whiptail --title "Reboot?" --yesno "Reboot router now?" 8 50
         local exit_code4=$?
         if [ $exit_code4 -eq 0 ]; then
             reboot
@@ -1660,7 +1660,7 @@ $selected
 Changes that will be made:
 $diff_summary
 
-This action can be undone by restoring a different backup." 20 78 3>&1 1>&2 2>&3
+This action can be undone by restoring a different backup." 20 78
     
     local exit_code2=$?
     if [ $exit_code2 -ne 0 ]; then
@@ -1684,7 +1684,7 @@ You may need to reboot your router for all changes to take effect." 12 70
             return 1
         fi
         
-        whiptail --title "Reboot?" --yesno "Reboot router now?" 8 50 3>&1 1>&2 2>&3
+        whiptail --title "Reboot?" --yesno "Reboot router now?" 8 50
         local exit_code4=$?
         if [ $exit_code4 -eq 0 ]; then
             reboot
@@ -1909,7 +1909,7 @@ Want to re-setup the connection?" 16 78
             return 1
         fi
         
-        whiptail --title "Re-setup?" --yesno "Re-setup GitHub connection?" 8 50 3>&1 1>&2 2>&3
+        whiptail --title "Re-setup?" --yesno "Re-setup GitHub connection?" 8 50
         local exit_code2=$?
         if [ $exit_code2 -eq 0 ]; then
             setup_ssh_key || return 1
@@ -1982,65 +1982,60 @@ Failed to create backup archive." 8 70
 
 # Settings menu
 settings_menu() {
-    local choice=$(whiptail --title "Settings" --menu "\
+    while true; do
+        local choice=$(whiptail --title "Settings" --menu "\
 Configure Time Machine:" 20 70 8 \
-        "1" "Change router name" \
-        "2" "Change what's backed up" \
-        "3" "Change auto-backup schedule" \
-        "4" "Online backup settings" \
-        "5" "Export to USB" \
-        "6" "Health check" \
-        "7" "View configuration" \
-        "8" "Back" \
-        3>&1 1>&2 2>&3)
-    
-    local exit_code=$?
-    if [ $exit_code -ne 0 ]; then
-        return 1  # Go back
-    fi
-    
-    case "$choice" in
-        1) 
-            settings_change_name
-            local result=$?
-            if [ $result -ne 0 ]; then
-                return 0  # Stay in settings if cancelled
-            fi
-            ;;
-        2) 
-            setup_select_files
-            local result=$?
-            if [ $result -eq 0 ]; then
-                save_config
-            fi
-            ;;
-        3) 
-            setup_auto_backup
-            local result=$?
-            if [ $result -eq 0 ]; then
-                save_config
-                setup_cron
-            fi
-            ;;
-        4) 
-            settings_setup_online
-            ;;
-        5) 
-            export_to_usb
-            ;;
-        6) 
-            health_check
-            ;;
-        7) 
-            settings_view_config
-            ;;
-        8) 
-            return 1  # Back to main menu
-            ;;
-    esac
-    
-    # Continue in settings menu
-    return 0
+            "1" "Change router name" \
+            "2" "Change what's backed up" \
+            "3" "Change auto-backup schedule" \
+            "4" "Online backup settings" \
+            "5" "Export to USB" \
+            "6" "Health check" \
+            "7" "View configuration" \
+            "8" "Back" \
+            3>&1 1>&2 2>&3)
+        
+        local exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+            return 1  # Go back
+        fi
+        
+        case "$choice" in
+            1) 
+                settings_change_name
+                ;;
+            2) 
+                setup_select_files
+                local result=$?
+                if [ $result -eq 0 ]; then
+                    save_config
+                fi
+                ;;
+            3) 
+                setup_auto_backup
+                local result=$?
+                if [ $result -eq 0 ]; then
+                    save_config
+                    setup_cron
+                fi
+                ;;
+            4) 
+                settings_setup_online
+                ;;
+            5) 
+                export_to_usb
+                ;;
+            6) 
+                health_check
+                ;;
+            7) 
+                settings_view_config
+                ;;
+            8) 
+                return 1  # Back to main menu
+                ;;
+        esac
+    done
 }
 
 # Setup/change online backup
