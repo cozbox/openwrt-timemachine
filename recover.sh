@@ -201,7 +201,7 @@ fi
 # Install backup manager
 print_info "Installing Time Machine..."
 
-SCRIPT_URL="https://raw.githubusercontent.com/niyisurvey/gitwrt/main/backup-manager.sh"
+SCRIPT_URL="https://raw.githubusercontent.com/cozbox/openwrt-timemachine/main/backup-manager.sh"
 
 if command -v curl >/dev/null 2>&1; then
     curl -f -L -o /root/backup-manager.sh "$SCRIPT_URL" >/dev/null 2>&1 || true

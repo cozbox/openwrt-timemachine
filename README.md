@@ -33,13 +33,13 @@ A simple backup tool for OpenWrt routers that automatically saves your settings 
 Run this on your OpenWrt router:
 
 ```sh
-wget -O - https://raw.githubusercontent.com/niyisurvey/gitwrt/main/install-backup.sh | sh
+wget -O - https://raw.githubusercontent.com/cozbox/openwrt-timemachine/main/install-backup.sh | sh
 ```
 
 Or with curl:
 
 ```sh
-curl -L https://raw.githubusercontent.com/niyisurvey/gitwrt/main/install-backup.sh | sh
+curl -L https://raw.githubusercontent.com/cozbox/openwrt-timemachine/main/install-backup.sh | sh
 ```
 
 That's it! The installer will:
@@ -67,7 +67,7 @@ opkg install git whiptail openssh-client openssh-keygen
 
 # Download and install
 cd /root
-wget https://raw.githubusercontent.com/niyisurvey/gitwrt/main/backup-manager.sh
+wget https://raw.githubusercontent.com/cozbox/openwrt-timemachine/main/backup-manager.sh
 chmod +x backup-manager.sh
 ln -s /root/backup-manager.sh /usr/bin/backup
 
@@ -177,7 +177,7 @@ You can choose what to protect during setup (you can change this later):
 3. Run this command:
 
 ```sh
-wget -O - https://raw.githubusercontent.com/niyisurvey/gitwrt/main/recover.sh | sh
+wget -O - https://raw.githubusercontent.com/cozbox/openwrt-timemachine/main/recover.sh | sh
 ```
 
 The recovery script will:
