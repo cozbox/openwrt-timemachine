@@ -50,7 +50,9 @@ detect_old_installation() {
         found=1
     fi
     
-    return $found
+    # Return 0 if migrations were found (shell convention: 0 = success)
+    # Return 1 if no migrations were found
+    test $found -eq 1
 }
 
 # Update function
@@ -68,7 +70,7 @@ update() {
     # Backup current script
     if [ -f "$INSTALL_DIR/backup-manager.sh" ]; then
         print_info "Backing up current version..."
-        cp "$INSTALL_DIR/backup-manager.sh" "$INSTALL_DIR/backup-manager.sh.backup.$(date +%s)"
+        cp "$INSTALL_DIR/backup-manager.sh" "$INSTALL_DIR/backup-manager.sh.backup.$(date +%Y%m%d_%H%M%S)"
         print_success "Current version backed up"
     fi
     
@@ -136,10 +138,14 @@ uninstall() {
     if [ -f /etc/crontabs/root ]; then
         if grep -q "backup-manager.sh" /etc/crontabs/root 2>/dev/null; then
             print_info "Removing cron jobs..."
-            grep -v "backup-manager.sh" /etc/crontabs/root > /etc/crontabs/root.tmp
-            mv /etc/crontabs/root.tmp /etc/crontabs/root
-            /etc/init.d/cron restart 2>/dev/null || true
-            print_success "Removed cron jobs"
+            if grep -v "backup-manager.sh" /etc/crontabs/root > /etc/crontabs/root.tmp; then
+                mv /etc/crontabs/root.tmp /etc/crontabs/root
+                /etc/init.d/cron restart 2>/dev/null || true
+                print_success "Removed cron jobs"
+            else
+                rm -f /etc/crontabs/root.tmp
+                print_warning "Failed to remove cron jobs"
+            fi
         fi
     fi
     
@@ -265,7 +271,7 @@ print_info "Downloading backup-manager.sh to $INSTALL_DIR..."
 
 if [ -f "$INSTALL_DIR/backup-manager.sh" ]; then
     print_warning "backup-manager.sh already exists, backing up..."
-    mv "$INSTALL_DIR/backup-manager.sh" "$INSTALL_DIR/backup-manager.sh.backup.$(date +%s)"
+    mv "$INSTALL_DIR/backup-manager.sh" "$INSTALL_DIR/backup-manager.sh.backup.$(date +%Y%m%d_%H%M%S)"
 fi
 
 # Try to download from GitHub, fallback to local copy if available
