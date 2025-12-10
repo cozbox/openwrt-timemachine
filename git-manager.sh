@@ -5,8 +5,6 @@
 # Compatible with ash shell (no bash-specific syntax)
 #
 
-set -e
-
 # Configuration
 CONFIG_FILE="$HOME/.gitmanager.conf"
 DEFAULT_REPOS_DIR="/root/repos"
@@ -97,9 +95,8 @@ first_run_setup() {
         whiptail --title "First-Run Setup" --msgbox "No SSH key found. We'll create one now." 8 60
         
         mkdir -p "$HOME/.ssh"
-        ssh-keygen -t ed25519 -N "" -f "$SSH_KEY_PATH" >/dev/null 2>&1
         
-        if [ $? -eq 0 ]; then
+        if ssh-keygen -t ed25519 -N "" -f "$SSH_KEY_PATH" >/dev/null 2>&1; then
             print_success "SSH key created at $SSH_KEY_PATH"
         else
             whiptail --title "Error" --msgbox "Failed to create SSH key." 8 60
@@ -301,11 +298,15 @@ stage_files() {
         return 1
     fi
     
-    # Remove quotes and add files
-    selected=$(echo "$selected" | tr -d '"')
-    for file in $selected; do
-        git add "$file"
-        print_success "Staged: $file"
+    # Process whiptail output (items are space-separated and quoted)
+    # Use eval to properly handle quoted filenames
+    eval "set -- $selected"
+    for file in "$@"; do
+        if git add "$file" 2>/dev/null; then
+            print_success "Staged: $file"
+        else
+            print_error "Failed to stage: $file"
+        fi
     done
     
     return 0
@@ -374,6 +375,8 @@ manage_branches() {
             # Get list of local branches
             local branches=$(git --no-pager branch | sed 's/^[* ]*//')
             local branch_list=""
+            # Build whiptail menu format: "tag1 item1 tag2 item2 ..."
+            # Using branch name as both tag and display text
             for branch in $branches; do
                 branch_list="$branch_list$branch $branch "
             done
