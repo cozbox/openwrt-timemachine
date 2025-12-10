@@ -186,12 +186,12 @@ How do you want to save backups?" 18 70 3 \
 
 # Setup wizard - Step 2: GitHub account check
 setup_github_check() {
-    local answer=$(whiptail --title "GitHub Account" --yesno "\
+    whiptail --title "GitHub Account" --yesno "\
 Do you have a GitHub account?
 
 GitHub is a free service that will store your backups online safely.
 
-If you don't have one, we'll show you how to sign up." 12 70 3>&1 1>&2 2>&3)
+If you don't have one, we'll show you how to sign up." 12 70 3>&1 1>&2 2>&3
     
     local exit_code=$?
     if [ $exit_code -ne 0 ]; then
@@ -307,12 +307,12 @@ Your router can now save backups online." 10 70
         fi
         return 0
     else
-        local answer=$(whiptail --title "Connection Failed" --yesno "\
+        whiptail --title "Connection Failed" --yesno "\
 Couldn't connect to GitHub.
 
 This usually means you didn't add the key yet.
 
-Want to try again?" 12 70 3>&1 1>&2 2>&3)
+Want to try again?" 12 70 3>&1 1>&2 2>&3
         
         local exit_code=$?
         if [ $exit_code -eq 0 ]; then
@@ -385,7 +385,7 @@ Choose what you want to protect:
     
     # Show warning if wireless is selected
     if echo "$BACKUP_FILES" | grep -q "wireless"; then
-        local answer=$(whiptail --title "⚠️  Warning About WiFi Passwords" --yesno "\
+        whiptail --title "⚠️  Warning About WiFi Passwords" --yesno "\
 If you back up WiFi passwords:
 
 • They will be stored on GitHub
@@ -396,7 +396,7 @@ If you back up WiFi passwords:
 
 Most people choose NOT to back these up.
 
-Do you want to continue backing up WiFi passwords?" 18 70 3>&1 1>&2 2>&3)
+Do you want to continue backing up WiFi passwords?" 18 70 3>&1 1>&2 2>&3
         
         local exit_code2=$?
         if [ $exit_code2 -ne 0 ] || [ $exit_code2 -eq 1 ]; then
@@ -1112,12 +1112,12 @@ Which online backup do you want to restore?" 20 78 12 $menu_items 3>&1 1>&2 2>&3
     fi
     
     # Confirm restore
-    local answer=$(whiptail --title "Confirm Restore" --yesno "\
+    whiptail --title "Confirm Restore" --yesno "\
 Are you sure you want to restore this backup from online?
 
 This will change your router settings.
 
-This action can be undone by restoring a different backup." 14 78 3>&1 1>&2 2>&3)
+This action can be undone by restoring a different backup." 14 78 3>&1 1>&2 2>&3
     
     local exit_code2=$?
     if [ $exit_code2 -ne 0 ]; then
@@ -1136,7 +1136,7 @@ This action can be undone by restoring a different backup." 14 78 3>&1 1>&2 2>&3
 
 You may need to reboot your router for all changes to take effect." 12 70
         
-        local answer2=$(whiptail --title "Reboot?" --yesno "Reboot router now?" 8 50 3>&1 1>&2 2>&3)
+        whiptail --title "Reboot?" --yesno "Reboot router now?" 8 50 3>&1 1>&2 2>&3
         local exit_code3=$?
         if [ $exit_code3 -eq 0 ]; then
             reboot
@@ -1340,7 +1340,7 @@ Which backup do you want to restore?" 20 78 12 $menu_items 3>&1 1>&2 2>&3)
     local current_head=$(git --no-pager rev-parse HEAD 2>/dev/null)
     local diff_summary=$(git --no-pager diff --stat "$current_head" "$selected" 2>/dev/null)
     
-    local answer=$(whiptail --title "Confirm Restore" --yesno "\
+    whiptail --title "Confirm Restore" --yesno "\
 Are you sure you want to restore this backup?
 
 This will change your router settings to:
@@ -1349,7 +1349,7 @@ $selected
 Changes that will be made:
 $diff_summary
 
-This action can be undone by restoring a different backup." 20 78 3>&1 1>&2 2>&3)
+This action can be undone by restoring a different backup." 20 78 3>&1 1>&2 2>&3
     
     local exit_code2=$?
     if [ $exit_code2 -ne 0 ]; then
@@ -1368,9 +1368,9 @@ This action can be undone by restoring a different backup." 20 78 3>&1 1>&2 2>&3
 
 You may need to reboot your router for all changes to take effect." 12 70
         
-        local answer=$(whiptail --title "Reboot?" --yesno "Reboot router now?" 8 50 3>&1 1>&2 2>&3)
-        local exit_code=$?
-        if [ $exit_code -eq 0 ]; then
+        whiptail --title "Reboot?" --yesno "Reboot router now?" 8 50 3>&1 1>&2 2>&3
+        local exit_code3=$?
+        if [ $exit_code3 -eq 0 ]; then
             reboot
         fi
     else
@@ -1508,10 +1508,10 @@ $report
 " 20 70
     
     if [ $warnings -gt 0 ]; then
-        local answer=$(whiptail --title "Issues Found" --yesno "\
+        whiptail --title "Issues Found" --yesno "\
 Found $warnings issue(s).
 
-Want to test the connection to GitHub?" 10 70 3>&1 1>&2 2>&3)
+Want to test the connection to GitHub?" 10 70 3>&1 1>&2 2>&3
         
         local exit_code=$?
         if [ $exit_code -eq 0 ]; then
@@ -1543,7 +1543,7 @@ $test_output
 
 Want to re-setup the connection?" 16 78
         
-        local answer=$(whiptail --title "Re-setup?" --yesno "Re-setup GitHub connection?" 8 50 3>&1 1>&2 2>&3)
+        whiptail --title "Re-setup?" --yesno "Re-setup GitHub connection?" 8 50 3>&1 1>&2 2>&3
         local exit_code=$?
         if [ $exit_code -eq 0 ]; then
             setup_ssh_key
