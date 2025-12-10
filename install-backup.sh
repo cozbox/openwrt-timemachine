@@ -29,7 +29,7 @@ print_info() {
 }
 
 echo "======================================="
-echo "OpenWrt Backup Manager Installation"
+echo "OpenWrt Time Machine Installation"
 echo "======================================="
 echo ""
 
@@ -109,24 +109,24 @@ chmod +x "$INSTALL_DIR/backup-manager.sh"
 print_success "Made backup-manager.sh executable"
 
 # Create symbolic link for easy access
-if [ -L /usr/bin/backup ]; then
-    rm /usr/bin/backup
+if [ -L /usr/bin/timemachine ]; then
+    rm /usr/bin/timemachine
 fi
 
-ln -s "$INSTALL_DIR/backup-manager.sh" /usr/bin/backup
-print_success "Created alias: backup"
+ln -s "$INSTALL_DIR/backup-manager.sh" /usr/bin/timemachine
+print_success "Created alias: timemachine"
 
 echo ""
 echo "======================================="
 print_success "Installation complete!"
 echo "======================================="
 echo ""
-echo "You can now run the Backup Manager using:"
-echo "  backup"
+echo "You can now run Time Machine using:"
+echo "  timemachine"
 echo "  or"
 echo "  $INSTALL_DIR/backup-manager.sh"
 echo ""
-print_info "Starting Backup Manager for first-time setup..."
+print_info "Starting Time Machine for first-time setup..."
 echo ""
 
 # Run the script

@@ -25,7 +25,7 @@ print_info() {
 }
 
 echo "======================================="
-echo "OpenWrt Backup Recovery"
+echo "OpenWrt Time Machine Recovery"
 echo "======================================="
 echo ""
 echo "This script helps you restore your router"
@@ -73,7 +73,7 @@ if [ ! -f "$SSH_KEY_PATH" ]; then
     print_info "Creating security key..."
     mkdir -p "$HOME/.ssh"
     
-    if ssh-keygen -t ed25519 -N "" -f "$SSH_KEY_PATH" -C "openwrt-recovery" >/dev/null 2>&1; then
+    if ssh-keygen -t ed25519 -N "" -f "$SSH_KEY_PATH" -C "openwrt-timemachine-recovery" >/dev/null 2>&1; then
         print_success "Security key created"
     else
         print_error "Failed to create security key"
@@ -108,10 +108,10 @@ fi
 # Try to find backup repositories
 print_info "Looking for your backup repositories..."
 
-BACKUP_DIR="/root/openwrt-backup"
+BACKUP_DIR="/root/time-machine"
 
 # Try common repository names
-REPO_NAMES="openwrt-backup openwrt-backup-main-router openwrt-backup-living-room-router"
+REPO_NAMES="openwrt-timemachine openwrt-timemachine-main-router openwrt-timemachine-living-room-router openwrt-backup openwrt-backup-main-router"
 
 FOUND_REPO=""
 for repo_name in $REPO_NAMES; do
@@ -138,7 +138,7 @@ done
 if [ -z "$FOUND_REPO" ]; then
     echo ""
     print_info "Couldn't auto-detect your backup."
-    print_info "Enter your backup repository name (e.g., openwrt-backup):"
+    print_info "Enter your backup repository name (e.g., openwrt-timemachine):"
     read -r repo_name
     
     if [ -z "$repo_name" ]; then
@@ -199,7 +199,7 @@ if [ -f "$BACKUP_DIR/package-list.txt" ]; then
 fi
 
 # Install backup manager
-print_info "Installing Backup Manager..."
+print_info "Installing Time Machine..."
 
 SCRIPT_URL="https://raw.githubusercontent.com/niyisurvey/gitwrt/main/backup-manager.sh"
 
@@ -211,8 +211,8 @@ fi
 
 if [ -f /root/backup-manager.sh ]; then
     chmod +x /root/backup-manager.sh
-    ln -sf /root/backup-manager.sh /usr/bin/backup
-    print_success "Backup Manager installed"
+    ln -sf /root/backup-manager.sh /usr/bin/timemachine
+    print_success "Time Machine installed"
 fi
 
 echo ""
@@ -224,7 +224,7 @@ echo "Your router settings have been restored."
 echo ""
 echo "Important:"
 echo "• You should reboot your router now"
-echo "• Run 'backup' to access the Backup Manager"
+echo "• Run 'timemachine' to access Time Machine"
 echo "• Your backup is located at: $BACKUP_DIR"
 echo ""
 print_info "Reboot now? (y/n)"
